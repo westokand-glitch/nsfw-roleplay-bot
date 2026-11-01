@@ -70,7 +70,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Фото
     if message.photo:
-        photo = message.photo[-1]  # самое большое
+        photo = message.photo[-1]
         file = await photo.get_file()
         b64 = await get_image_base64(file)
         content.append({
@@ -78,7 +78,30 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
         })
         if not message.caption and not message.text:
-            content.insert(0, {"type": "text", "text": "Опиши это фото подробно в эротическом ключе и продолжи сцену."})
+            content.insert(0, {"type": "text", "text": "Опиши это изображение подробно в эротическом ключе и продолжи сцену."})
+
+    # GIF / анимация
+    elif message.animation:
+        file = await message.animation.get_file()
+        b64 = await get_image_base64(file)
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/gif;base64,{b64}"}
+        })
+        if not message.caption and not message.text:
+            content.insert(0, {"type": "text", "text": "Опиши этот GIF подробно в эротическом ключе и продолжи сцену."})
+
+    # Документ-изображение
+    elif message.document and message.document.mime_type and message.document.mime_type.startswith("image/"):
+        file = await message.document.get_file()
+        b64 = await get_image_base64(file)
+        mime = message.document.mime_type
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{mime};base64,{b64}"}
+        })
+        if not message.caption and not message.text:
+            content.insert(0, {"type": "text", "text": "Опиши это изображение подробно в эротическом ключе и продолжи сцену."})
 
     # Подпись к фото
     if message.caption:
@@ -142,7 +165,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(MessageHandler(
-        (filters.TEXT | filters.PHOTO) & ~filters.COMMAND,
+        (filters.TEXT | filters.PHOTO | filters.ANIMATION | filters.Document.IMAGE) & ~filters.COMMAND,
         handle_message
     ))
 

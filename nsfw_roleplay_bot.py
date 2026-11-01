@@ -82,14 +82,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # GIF / анимация
     elif message.animation:
+        await message.reply_text("Обрабатываю GIF... (беру первый кадр)")
         file = await message.animation.get_file()
         b64 = await get_image_base64(file)
+        # Grok лучше принимает jpeg, поэтому помечаем как jpeg
         content.append({
             "type": "image_url",
-            "image_url": {"url": f"data:image/gif;base64,{b64}"}
+            "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
         })
         if not message.caption and not message.text:
-            content.insert(0, {"type": "text", "text": "Опиши этот GIF подробно в эротическом ключе и продолжи сцену."})
+            content.insert(0, {"type": "text", "text": "Это GIF. Опиши первый кадр подробно в эротическом ключе и продолжи сцену."})
 
     # Документ-изображение
     elif message.document and message.document.mime_type and message.document.mime_type.startswith("image/"):

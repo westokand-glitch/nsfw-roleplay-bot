@@ -3,7 +3,6 @@ import logging
 from collections import defaultdict
 from pathlib import Path
 
-from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import (
     Application,

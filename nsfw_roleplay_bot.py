@@ -14,7 +14,6 @@ from telegram.ext import (
 import httpx
 
 # Загружаем .env до чтения переменных окружения
-load_dotenv()
 
 # ================== НАСТРОЙКИ ==================
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")

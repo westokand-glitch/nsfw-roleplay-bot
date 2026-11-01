@@ -91,8 +91,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     conversations[user_id].append({"role": "user", "content": content})
 
-    if len(conversations[user_id]) > 15:
-        conversations[user_id] = conversations[user_id][-15:]
+    if len(conversations[user_id]) > 8:
+        conversations[user_id] = conversations[user_id][-8:]
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + conversations[user_id]
 
@@ -108,7 +108,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "model": AI_MODEL,
                     "messages": messages,
                     "temperature": 0.85,
-                    "max_tokens": 2000,
+                    "max_tokens": 800,
                 },
             )
             response.raise_for_status()

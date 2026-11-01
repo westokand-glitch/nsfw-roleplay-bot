@@ -292,6 +292,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 
+import asyncio
+
 def main():
     if TELEGRAM_TOKEN == "ВСТАВЬ_СЮДА_ТОКЕН_ОТ_BOTFATHER":
         print("Ошибка: вставь TELEGRAM_TOKEN")
@@ -313,15 +315,20 @@ def main():
     ))
 
     # Утренняя рассылка каждый день в 9:00 МСК (6:00 UTC)
-    app.job_queue.run_daily(
-        send_morning_story,
-        time=time(hour=MORNING_HOUR_UTC, minute=MORNING_MINUTE),
-        name="morning_story"
-    )
+    if app.job_queue:
+        app.job_queue.run_daily(
+            send_morning_story,
+            time=time(hour=MORNING_HOUR_UTC, minute=MORNING_MINUTE),
+            name="morning_story"
+        )
 
     print("Бот запущен...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
     main()

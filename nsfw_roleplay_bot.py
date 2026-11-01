@@ -138,7 +138,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Ошибка AI: {e}")
-        await query.edit_message_text("Ошибка при генерации текста. Попробуй ещё раз.")
+        await query.edit_message_text(f"Ошибка: {str(e)[:200]}")
 
 
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):

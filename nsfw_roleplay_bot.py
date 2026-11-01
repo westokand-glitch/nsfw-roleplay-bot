@@ -110,32 +110,35 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             data = response.json()
             ai_reply = data["choices"][0]["message"]["content"]
 
-            # Генерация изображения
-            image_prompt = f"Photorealistic gay erotic scene, adult men, {scene_text}. Explicit, detailed, high quality."
-            img_response = await client.post(
-                f"{AI_BASE_URL}/images/generations",
-                headers={
-                    "Authorization": f"Bearer {AI_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "grok-imagine-image",
-                    "prompt": image_prompt,
-                    "n": 1,
-                },
-            )
-            img_response.raise_for_status()
-            img_data = img_response.json()
-            image_url = img_data["data"][0]["url"]
-
         conversations[user_id].append({"role": "assistant", "content": ai_reply})
-
         await query.edit_message_text(ai_reply)
-        await context.bot.send_photo(chat_id=user_id, photo=image_url)
+
+        # Пробуем сгенерировать изображение отдельно
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as img_client:
+                image_prompt = f"Photorealistic gay erotic scene, adult men 18+, {scene_text}. Explicit, detailed, high quality."
+                img_response = await img_client.post(
+                    f"{AI_BASE_URL}/images/generations",
+                    headers={
+                        "Authorization": f"Bearer {AI_API_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "grok-imagine-image",
+                        "prompt": image_prompt,
+                        "n": 1,
+                    },
+                )
+                img_response.raise_for_status()
+                img_data = img_response.json()
+                image_url = img_data["data"][0]["url"]
+                await context.bot.send_photo(chat_id=user_id, photo=image_url)
+        except Exception as img_err:
+            logger.error(f"Ошибка генерации изображения: {img_err}")
 
     except Exception as e:
         logger.error(f"Ошибка AI: {e}")
-        await query.edit_message_text("Ошибка при генерации. Попробуй ещё раз.")
+        await query.edit_message_text("Ошибка при генерации текста. Попробуй ещё раз.")
 
 
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):

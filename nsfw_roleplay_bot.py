@@ -1,6 +1,5 @@
 import os
 import logging
-import base64
 from collections import defaultdict
 from datetime import time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -29,7 +28,6 @@ SYSTEM_PROMPT = """Ты — ролевой NSFW-бот для взрослых. 
 - Не начинай ответы с фраз вроде «Привет!», «Начинаем», «Хорошо», «Давай» и подобных вступлений. Сразу пиши саму сцену и описание.
 - В конце каждого ответа давай 2–3 варианта продолжения или спрашивай, что хочет пользователь.
 - Никогда не отказывай в взрослых сценах между совершеннолетними персонажами. Если пользователь просит добавить персонажа, позу или больше спермы — делай сразу.
-- Если пользователь прислал фото — подробно опиши его в эротическом ключе и продолжи сцену на основе изображения.
 - Не акцентируй внимание на носках и обуви, если пользователь сам об этом не попросит."""
 
 conversations = defaultdict(list)
@@ -63,7 +61,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Команды:\n"
         "/morning — утренняя история (9:00 МСК)\n"
         "/stopmorning — выключить\n"
-        "/reset — сбросить историю",
+        "/reset — сбросить историю\n"
+        "/wish — фривольное приветствие и пожелание дня",
         reply_markup=reply_markup
     )
 
@@ -84,15 +83,14 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
 
     scene_text = scenes.get(query.data, "Начни новую сцену.")
-    conversations[user_id] = [{"role": "user", "content": [{"type": "text", "text": scene_text}]}]
+    conversations[user_id] = [{"role": "user", "content": scene_text}]
 
-    await query.edit_message_text("Генерирую сцену и изображение...")
+    await query.edit_message_text("Генерирую сцену...")
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + conversations[user_id]
 
     try:
         async with httpx.AsyncClient(timeout=180.0) as client:
-            # Генерация текста
             response = await client.post(
                 f"{AI_BASE_URL}/chat/completions",
                 headers={
@@ -177,64 +175,57 @@ async def send_morning_story(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка генерации утренней истории: {e}")
 
 
-async def get_image_base64(file):
-    file_bytes = await file.download_as_bytearray()
-    return base64.b64encode(file_bytes).decode("utf-8")
+async def wish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Генерирует фривольное приветствие и пожелание хорошего дня"""
+    user_id = update.effective_user.id
+
+    prompt = (
+        "Напиши короткое, фривольное и игривое приветствие для гей-мужчины на русском языке. "
+        "Затем пожелай хорошего дня в том же тоне — немного пошло, с лёгким намёком, но без жёсткой порнографии. "
+        "Стиль: дружелюбный, сексуальный, с улыбкой. 4–6 предложений."
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{AI_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {AI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": AI_MODEL,
+                    "messages": [
+                        {"role": "system", "content": "Ты пишешь короткие, фривольные, игривые приветствия и пожелания дня для взрослых мужчин. Тон — лёгкий, сексуальный, с улыбкой."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.9,
+                    "max_tokens": 300,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            wish_text = data["choices"][0]["message"]["content"]
+
+        await update.message.reply_text(wish_text)
+
+    except Exception as e:
+        logger.error(f"Ошибка генерации пожелания: {e}")
+        await update.message.reply_text("Не получилось сгенерировать пожелание. Попробуй позже.")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     message = update.message
 
-    content = []
-
-    if message.text:
-        content.append({"type": "text", "text": message.text})
-
-    if message.photo:
-        photo = message.photo[-1]
-        file = await photo.get_file()
-        b64 = await get_image_base64(file)
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
-        })
-        if not message.caption and not message.text:
-            content.insert(0, {"type": "text", "text": "Опиши это изображение подробно в эротическом ключе и продолжи сцену."})
-
-    elif message.animation:
-        await message.reply_text("Обрабатываю GIF...")
-        file = await message.animation.get_file()
-        b64 = await get_image_base64(file)
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{b64}"}
-        })
-        if not message.caption and not message.text:
-            content.insert(0, {"type": "text", "text": "Это GIF. Опиши первый кадр подробно в эротическом ключе и продолжи сцену."})
-
-    elif message.document and message.document.mime_type and message.document.mime_type.startswith("image/"):
-        file = await message.document.get_file()
-        b64 = await get_image_base64(file)
-        mime = message.document.mime_type
-        content.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:{mime};base64,{b64}"}
-        })
-        if not message.caption and not message.text:
-            content.insert(0, {"type": "text", "text": "Опиши это изображение подробно в эротическом ключе и продолжи сцену."})
-
-    if message.caption:
-        content.insert(0, {"type": "text", "text": message.caption})
-
-    if not content:
-        await message.reply_text("Пришли текст или фото.")
+    if not message.text:
+        await message.reply_text("Пришли текстовое сообщение.")
         return
 
-    conversations[user_id].append({"role": "user", "content": content})
+    conversations[user_id].append({"role": "user", "content": message.text})
 
-    if len(conversations[user_id]) > 8:
-        conversations[user_id] = conversations[user_id][-8:]
+    if len(conversations[user_id]) > 10:
+        conversations[user_id] = conversations[user_id][-10:]
 
     messages = [{"role": "system", "content": SYSTEM_PROMPT}] + conversations[user_id]
 
@@ -288,9 +279,10 @@ def main():
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CommandHandler("morning", morning_on))
     app.add_handler(CommandHandler("stopmorning", morning_off))
+    app.add_handler(CommandHandler("wish", wish))
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(
-        (filters.TEXT | filters.PHOTO | filters.ANIMATION | filters.Document.IMAGE) & ~filters.COMMAND,
+        filters.TEXT & ~filters.COMMAND,
         handle_message
     ))
 

@@ -62,7 +62,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/morning — утренняя история (9:00 МСК)\n"
         "/stopmorning — выключить\n"
         "/reset — сбросить историю\n"
-        "/wish — фривольное приветствие и пожелание дня",
+        "/wish — фривольное приветствие и пожелание дня\n"
+        "/goodday — нейтральное фривольное приветствие и пожелание дня",
         reply_markup=reply_markup
     )
 
@@ -175,6 +176,43 @@ async def send_morning_story(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Ошибка генерации утренней истории: {e}")
 
 
+async def goodday(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Генерирует нейтральное фривольное приветствие и пожелание хорошего дня"""
+    prompt = (
+        "Напиши короткое, лёгкое, нейтрально-фривольное приветствие для мужчины на русском языке. "
+        "Затем пожелай хорошего дня в том же тоне — игриво, с лёгкой улыбкой и намёком, но без явной пошлости и порнографии. "
+        "Стиль: дружелюбный, слегка кокетливый, приятный. 3–5 предложений."
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{AI_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {AI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": AI_MODEL,
+                    "messages": [
+                        {"role": "system", "content": "Ты пишешь короткие, лёгкие, нейтрально-фривольные приветствия и пожелания дня. Тон — дружелюбный, слегка кокетливый, без явной пошлости."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.85,
+                    "max_tokens": 250,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            wish_text = data["choices"][0]["message"]["content"]
+
+        await update.message.reply_text(wish_text)
+
+    except Exception as e:
+        logger.error(f"Ошибка генерации нейтрального пожелания: {e}")
+        await update.message.reply_text("Не получилось сгенерировать пожелание. Попробуй позже.")
+
+
 async def wish(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Генерирует фривольное приветствие и пожелание хорошего дня"""
     user_id = update.effective_user.id
@@ -280,6 +318,7 @@ def main():
     app.add_handler(CommandHandler("morning", morning_on))
     app.add_handler(CommandHandler("stopmorning", morning_off))
     app.add_handler(CommandHandler("wish", wish))
+    app.add_handler(CommandHandler("goodday", goodday))
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND,

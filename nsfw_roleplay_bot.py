@@ -63,7 +63,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/stopmorning — выключить\n"
         "/reset — сбросить историю\n"
         "/wish — фривольное приветствие и пожелание дня\n"
-        "/goodday — нейтральное фривольное приветствие и пожелание дня",
+        "/goodday — нейтральное фривольное приветствие и пожелание дня\n"
+        "/joke — пошлый анекдот",
         reply_markup=reply_markup
     )
 
@@ -174,6 +175,43 @@ async def send_morning_story(context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Ошибка генерации утренней истории: {e}")
+
+
+async def joke(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Генерирует пошлый анекдот с подтекстом на связь между мужчинами или упоминание мужских гениталий"""
+    prompt = (
+        "Придумай короткий пошлый анекдот на русском языке. "
+        "В нём должен быть подтекст про связь между мужчинами или прямое/намёковое упоминание мужских гениталий. "
+        "Анекдот должен быть смешным, грязным и в мужском стиле. 4–8 предложений."
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                f"{AI_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {AI_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": AI_MODEL,
+                    "messages": [
+                        {"role": "system", "content": "Ты рассказываешь короткие пошлые анекдоты на русском. Тон — грязный, мужской, с подтекстом про мужчин или их члены."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.95,
+                    "max_tokens": 400,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            joke_text = data["choices"][0]["message"]["content"]
+
+        await update.message.reply_text(joke_text)
+
+    except Exception as e:
+        logger.error(f"Ошибка генерации анекдота: {e}")
+        await update.message.reply_text("Не получилось сгенерировать анекдот. Попробуй позже.")
 
 
 async def goodday(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -321,6 +359,7 @@ def main():
     app.add_handler(CommandHandler("stopmorning", morning_off))
     app.add_handler(CommandHandler("wish", wish))
     app.add_handler(CommandHandler("goodday", goodday))
+    app.add_handler(CommandHandler("joke", joke))
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND,

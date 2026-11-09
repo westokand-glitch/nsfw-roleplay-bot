@@ -178,13 +178,38 @@ async def send_morning_story(context: ContextTypes.DEFAULT_TYPE):
 
 
 async def joke(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Генерирует пошлый анекдот с подтекстом на связь между мужчинами или упоминание мужских гениталий"""
+    """Показывает кнопки выбора режима анекдота"""
+    keyboard = [
+        [InlineKeyboardButton("AI-анекдот", callback_data="joke_ai")],
+        [InlineKeyboardButton("С сайта (API)", callback_data="joke_api")],
+        [InlineKeyboardButton("Смешанный", callback_data="joke_mixed")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text("Выбери режим анекдота:", reply_markup=reply_markup)
+
+
+async def joke_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    mode = query.data
+
+    if mode == "joke_ai":
+        await generate_ai_joke(query)
+    elif mode == "joke_api":
+        await get_joke_from_site(query)
+    elif mode == "joke_mixed":
+        # Сначала пробуем сайт, если не получилось — AI
+        success = await get_joke_from_site(query, silent=True)
+        if not success:
+            await generate_ai_joke(query)
+
+
+async def generate_ai_joke(query):
     prompt = (
         "Придумай очень смешной и оригинальный пошлый анекдот на русском языке. "
-        "Тема должна быть разнообразной: не только про раздевалку или баню. "
-        "Можно про работу, армию, дачу, поезд, больницу, спортзал, рыбалку, стройку, офис и т.д. "
-        "Обязательно с подтекстом про связь между мужчинами или упоминанием мужских гениталий. "
-        "Анекдот должен быть остроумным, с неожиданной концовкой. Избегай шаблонных сюжетов. 5–10 предложений."
+        "Тема должна быть разнообразной. Обязательно с подтекстом про связь между мужчинами или упоминанием мужских гениталий. "
+        "Анекдот должен быть остроумным, с неожиданной концовкой. 5–10 предложений."
     )
 
     try:
@@ -198,7 +223,7 @@ async def joke(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 json={
                     "model": AI_MODEL,
                     "messages": [
-                        {"role": "system", "content": "Ты мастер разнообразных пошлых анекдотов на русском. Каждый анекдот должен быть на новую тему и с неожиданным сюжетом. Ты избегаешь повторений и шаблонов."},
+                        {"role": "system", "content": "Ты мастер разнообразных пошлых анекдотов на русском."},
                         {"role": "user", "content": prompt},
                     ],
                     "temperature": 1.05,
@@ -209,11 +234,59 @@ async def joke(update: Update, context: ContextTypes.DEFAULT_TYPE):
             data = response.json()
             joke_text = data["choices"][0]["message"]["content"]
 
-        await update.message.reply_text(joke_text)
+        await query.edit_message_text(joke_text)
+        return True
 
     except Exception as e:
-        logger.error(f"Ошибка генерации анекдота: {e}")
-        await update.message.reply_text(f"Ошибка анекдота: {str(e)[:300]}")
+        logger.error(f"Ошибка AI-анекдота: {e}")
+        await query.edit_message_text(f"Ошибка AI: {str(e)[:200]}")
+        return False
+
+
+async def get_joke_from_site(query, silent=False):
+    """Пытается взять анекдот с anekdotov.net или anekdot.ru"""
+    import re
+    sites = [
+        "http://anekdotov.net/intim/chlen/",
+        "https://www.anekdot.ru/random/anekdot/",
+    ]
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+            for url in sites:
+                try:
+                    response = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                    response.raise_for_status()
+                    html = response.text
+
+                    # Простой поиск текста анекдота
+                    # Для anekdotov.net
+                    matches = re.findall(r'<div class="text">(.*?)</div>', html, re.DOTALL)
+                    if not matches:
+                        # Для anekdot.ru
+                        matches = re.findall(r'<div class="text">(.*?)</div>', html, re.DOTALL)
+
+                    if matches:
+                        joke = matches[0]
+                        # Очистка от HTML-тегов
+                        joke = re.sub(r'<[^>]+>', '', joke)
+                        joke = joke.strip()
+                        if len(joke) > 50:
+                            if not silent:
+                                await query.edit_message_text(joke[:3500])
+                            return True
+                except Exception:
+                    continue
+
+        if not silent:
+            await query.edit_message_text("Не удалось получить анекдот с сайтов.")
+        return False
+
+    except Exception as e:
+        logger.error(f"Ошибка парсинга: {e}")
+        if not silent:
+            await query.edit_message_text("Ошибка при получении анекдота с сайта.")
+        return False
 
 
 async def goodday(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -362,6 +435,7 @@ def main():
     app.add_handler(CommandHandler("wish", wish))
     app.add_handler(CommandHandler("goodday", goodday))
     app.add_handler(CommandHandler("joke", joke))
+    app.add_handler(CallbackQueryHandler(joke_callback, pattern="^joke_"))
     app.add_handler(CallbackQueryHandler(button_callback))
     app.add_handler(MessageHandler(
         filters.TEXT & ~filters.COMMAND,

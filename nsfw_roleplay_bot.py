@@ -213,7 +213,7 @@ async def joke(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Ошибка генерации анекдота: {e}")
-        await update.message.reply_text("Не получилось сгенерировать анекдот. Попробуй позже.")
+        await update.message.reply_text(f"Ошибка анекдота: {str(e)[:300]}")
 
 
 async def goodday(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -251,7 +251,7 @@ async def goodday(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Ошибка генерации нейтрального пожелания: {e}")
-        await update.message.reply_text("Не получилось сгенерировать пожелание. Попробуй позже.")
+        await update.message.reply_text(f"Ошибка goodday: {str(e)[:300]}")
 
 
 async def wish(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -291,7 +291,7 @@ async def wish(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Ошибка генерации пожелания: {e}")
-        await update.message.reply_text("Не получилось сгенерировать пожелание. Попробуй позже.")
+        await update.message.reply_text(f"Ошибка wish: {str(e)[:300]}")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
